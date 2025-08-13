@@ -118,15 +118,7 @@ export default function Footer() {
                   About
                 </a>
               </li>
-              <li>
-                <button 
-                  onClick={() => scrollToSection('contact')}
-                  className="text-gray-400 hover:text-white transition-colors duration-200 text-left"
-                  data-testid="footer-link-contact"
-                >
-                  Contact
-                </button>
-              </li>
+              
               <li>
                 <a href="#" className="text-gray-400 hover:text-white transition-colors duration-200" data-testid="footer-link-privacy">
                   Privacy

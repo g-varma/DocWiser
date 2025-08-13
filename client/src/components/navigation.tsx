@@ -51,14 +51,7 @@ export default function Navigation() {
               >
                 Impact
               </button>
-              <button 
-                onClick={() => scrollToSection('contact')}
-                className="text-gray-600 hover:text-primary-500 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-                data-testid="nav-contact"
-                aria-label="Navigate to contact section"
-              >
-                Contact
-              </button>
+              
               <button 
                 onClick={() => scrollToSection('try-now')}
                 className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
@@ -106,13 +99,7 @@ export default function Navigation() {
               >
                 Impact
               </button>
-              <button 
-                onClick={() => scrollToSection('contact')}
-                className="text-gray-600 hover:text-primary-500 block px-3 py-2 rounded-md text-base font-medium w-full text-left"
-                data-testid="mobile-nav-contact"
-              >
-                Contact
-              </button>
+              
               <button 
                 onClick={() => scrollToSection('try-now')}
                 className="bg-primary-500 hover:bg-primary-600 text-white block px-3 py-2 rounded-lg text-base font-medium w-full text-left"

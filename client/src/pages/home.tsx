@@ -5,7 +5,7 @@ import ProblemSection from "@/components/problem-section";
 import FeaturesSection from "@/components/features-section";
 import DemoSection from "@/components/demo-section";
 import TryNowSection from "@/components/try-now-section";
-import ContactSection from "@/components/contact-section";
+
 import Footer from "@/components/footer";
 
 export default function Home() {
@@ -42,7 +42,7 @@ export default function Home() {
       <FeaturesSection />
       <DemoSection />
       <TryNowSection />
-      <ContactSection />
+      
       <Footer />
     </div>
   );
