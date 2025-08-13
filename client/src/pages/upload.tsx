@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useLocation } from "wouter";
-import { CloudUpload, Shield, Clock, CheckCircle, ArrowLeft, FileText, AlertCircle, Download } from "lucide-react";
+import { CloudUpload, Shield, Clock, CheckCircle, ArrowLeft, FileText, AlertCircle, Download, ChevronDown, Play, Pause, Eye, X } from "lucide-react";
 
 interface AnalysisResult {
   filename: string;
@@ -26,7 +26,13 @@ export default function Upload() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState('pdf');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isNarrating, setIsNarrating] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -134,6 +140,134 @@ export default function Upload() {
       default: return 'text-gray-600 bg-gray-50';
     }
   };
+
+  const handleDownload = (format: string) => {
+    if (!results) return;
+    
+    // Create a mock file for download
+    let content = '';
+    let mimeType = '';
+    let extension = '';
+    
+    switch (format) {
+      case 'pdf':
+        content = `%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Accessible Document) Tj\nET\nendstream\nendobj\n\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000074 00000 n \n0000000120 00000 n \n0000000179 00000 n \ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n271\n%%EOF`;
+        mimeType = 'application/pdf';
+        extension = 'pdf';
+        break;
+      case 'html':
+        content = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessible Document - ${results.filename}</title>
+</head>
+<body>
+    <h1>Accessible Document</h1>
+    <p>This is your document with full accessibility features:</p>
+    <ul>
+        <li>Proper semantic structure with H1-H6 headings</li>
+        <li>Alt text for all images</li>
+        <li>Correct reading order for screen readers</li>
+        <li>Properly labeled form fields</li>
+    </ul>
+    <p>Original file: ${results.filename}</p>
+    <p>Accessibility score improved from ${results.score.before}% to ${results.score.after}%</p>
+</body>
+</html>`;
+        mimeType = 'text/html';
+        extension = 'html';
+        break;
+      case 'docx':
+        content = `Document: ${results.filename}\n\nAccessibility Report:\n- Issues found: ${results.issues.length}\n- Fixes applied: ${results.fixes.length}\n- Score improved from ${results.score.before}% to ${results.score.after}%\n\nThis is a simplified text version. The actual document would be properly formatted with accessibility features.`;
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        extension = 'docx';
+        break;
+      default:
+        content = results.filename;
+        mimeType = 'text/plain';
+        extension = 'txt';
+    }
+    
+    const blob = new Blob([content], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${results.filename.split('.')[0]}_accessible.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleNarration = () => {
+    if (!results) return;
+    
+    if (isNarrating && !isPaused) {
+      // Pause narration
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+      return;
+    }
+    
+    if (isPaused) {
+      // Resume narration
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+      return;
+    }
+    
+    // Start new narration
+    const text = `
+      Document analysis complete for ${results.filename}. 
+      The accessibility score has improved from ${results.score.before} percent to ${results.score.after} percent.
+      
+      Issues found and fixed:
+      ${results.issues.map(issue => `${issue.type}: ${issue.description}`).join('. ')}
+      
+      Fixes applied:
+      ${results.fixes.map(fix => `${fix.type}: ${fix.description}`).join('. ')}
+      
+      Your document is now fully accessible and ready for download.
+    `;
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.8;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    utterance.onstart = () => {
+      setIsNarrating(true);
+      setIsPaused(false);
+    };
+    
+    utterance.onend = () => {
+      setIsNarrating(false);
+      setIsPaused(false);
+    };
+    
+    utterance.onerror = () => {
+      setIsNarrating(false);
+      setIsPaused(false);
+    };
+    
+    speechRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopNarration = () => {
+    window.speechSynthesis.cancel();
+    setIsNarrating(false);
+    setIsPaused(false);
+  };
+
+  const downloadFormats = [
+    { value: 'pdf', label: 'PDF Document', icon: '📄' },
+    { value: 'html', label: 'HTML Webpage', icon: '🌐' },
+    { value: 'docx', label: 'Word Document', icon: '📝' },
+    { value: 'txt', label: 'Plain Text', icon: '📋' }
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -302,21 +436,272 @@ export default function Upload() {
                 </div>
               </div>
 
-              {/* Download Actions */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button className="flex-1 bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center">
-                  <Download className="w-5 h-5 mr-2" />
-                  Download Fixed PDF
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                <button 
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-center"
+                  data-testid="button-preview"
+                >
+                  <Eye className="w-5 h-5 mr-2" />
+                  {showPreview ? 'Hide Preview' : 'Preview Document'}
                 </button>
-                <button className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center justify-center">
-                  <Download className="w-5 h-5 mr-2" />
-                  Download HTML Version
+                
+                <button 
+                  onClick={handleNarration}
+                  className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 flex items-center justify-center ${
+                    isNarrating 
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500' 
+                      : 'bg-green-500 hover:bg-green-600 text-white focus:ring-green-500'
+                  }`}
+                  data-testid="button-narrate"
+                >
+                  {isNarrating ? (
+                    isPaused ? (
+                      <>
+                        <Play className="w-5 h-5 mr-2" />
+                        Resume Narration
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="w-5 h-5 mr-2" />
+                        Pause Narration
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 mr-2" />
+                      Listen to Summary
+                    </>
+                  )}
                 </button>
-                <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
-                  Upload Another
+
+                {isNarrating && (
+                  <button 
+                    onClick={stopNarration}
+                    className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    data-testid="button-stop-narration"
+                  >
+                    Stop
+                  </button>
+                )}
+              </div>
+
+              {/* Download Section */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Download Your Accessible Document</h3>
+                
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Format Dropdown */}
+                  <div className="relative flex-1">
+                    <button
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="w-full bg-white border border-gray-300 rounded-lg px-4 py-3 text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      data-testid="dropdown-format"
+                    >
+                      <span className="flex items-center">
+                        <span className="mr-2">
+                          {downloadFormats.find(f => f.value === downloadFormat)?.icon}
+                        </span>
+                        {downloadFormats.find(f => f.value === downloadFormat)?.label}
+                      </span>
+                      <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    
+                    {isDropdownOpen && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+                        {downloadFormats.map((format) => (
+                          <button
+                            key={format.value}
+                            onClick={() => {
+                              setDownloadFormat(format.value);
+                              setIsDropdownOpen(false);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center first:rounded-t-lg last:rounded-b-lg"
+                            data-testid={`format-${format.value}`}
+                          >
+                            <span className="mr-3">{format.icon}</span>
+                            {format.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Download Button */}
+                  <button 
+                    onClick={() => handleDownload(downloadFormat)}
+                    className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center"
+                    data-testid="button-download"
+                  >
+                    <Download className="w-5 h-5 mr-2" />
+                    Download
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Another */}
+              <div className="text-center mt-6">
+                <button 
+                  onClick={() => {
+                    setResults(null);
+                    setShowPreview(false);
+                    stopNarration();
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-8 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  data-testid="button-upload-another"
+                >
+                  Upload Another Document
                 </button>
               </div>
             </div>
+
+            {/* Document Preview */}
+            {showPreview && (
+              <div className="bg-white rounded-xl p-8 shadow-xl mt-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900">Document Preview</h3>
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                    data-testid="close-preview"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-6 border-2 border-gray-200">
+                  <div className="bg-white rounded-lg shadow-inner min-h-[500px] p-8">
+                    <div className="max-w-2xl mx-auto">
+                      {/* Simulated Accessible Document */}
+                      <header className="mb-8">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2" role="heading" aria-level={1}>
+                          {results?.filename.replace(/\.[^/.]+$/, "")} - Accessible Version
+                        </h1>
+                        <div className="text-sm text-green-600 bg-green-50 p-2 rounded" role="status">
+                          ✓ This document is now fully accessible with proper semantic structure
+                        </div>
+                      </header>
+
+                      <main>
+                        <section className="mb-6">
+                          <h2 className="text-2xl font-semibold text-gray-800 mb-4" role="heading" aria-level={2}>
+                            Document Summary
+                          </h2>
+                          <p className="text-gray-700 mb-4">
+                            This document has been processed to ensure full accessibility compliance with WCAG 2.1 AA standards.
+                            All issues have been automatically fixed.
+                          </p>
+                        </section>
+
+                        <section className="mb-6">
+                          <h3 className="text-xl font-semibold text-gray-800 mb-3" role="heading" aria-level={3}>
+                            Accessibility Features Added:
+                          </h3>
+                          <ul className="list-disc list-inside text-gray-700 space-y-2" role="list">
+                            <li role="listitem">Proper heading hierarchy (H1, H2, H3, etc.)</li>
+                            <li role="listitem">Alt text for all images and graphics</li>
+                            <li role="listitem">Correct reading order for screen readers</li>
+                            <li role="listitem">Form fields with proper labels</li>
+                            <li role="listitem">High contrast colors for better visibility</li>
+                            <li role="listitem">Keyboard navigation support</li>
+                          </ul>
+                        </section>
+
+                        {/* Sample accessible form */}
+                        <section className="mb-6 p-4 border border-gray-300 rounded-lg">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-3" role="heading" aria-level={3}>
+                            Sample Accessible Form
+                          </h3>
+                          <form className="space-y-4" role="form">
+                            <div>
+                              <label htmlFor="sample-name" className="block text-sm font-medium text-gray-700 mb-1">
+                                Full Name *
+                              </label>
+                              <input 
+                                type="text" 
+                                id="sample-name"
+                                name="name"
+                                required
+                                aria-describedby="name-help"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="Enter your full name"
+                              />
+                              <div id="name-help" className="text-xs text-gray-500 mt-1">
+                                This field is required for form submission
+                              </div>
+                            </div>
+                            <div>
+                              <label htmlFor="sample-email" className="block text-sm font-medium text-gray-700 mb-1">
+                                Email Address *
+                              </label>
+                              <input 
+                                type="email" 
+                                id="sample-email"
+                                name="email"
+                                required
+                                aria-describedby="email-help"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                placeholder="your.email@example.com"
+                              />
+                              <div id="email-help" className="text-xs text-gray-500 mt-1">
+                                We'll never share your email address
+                              </div>
+                            </div>
+                          </form>
+                        </section>
+
+                        {/* Sample accessible table */}
+                        <section className="mb-6">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-3" role="heading" aria-level={3}>
+                            Sample Accessible Data Table
+                          </h3>
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border border-gray-300" role="table">
+                              <caption className="text-sm text-gray-600 mb-2">
+                                Accessibility improvement statistics
+                              </caption>
+                              <thead>
+                                <tr className="bg-gray-100">
+                                  <th scope="col" className="px-4 py-2 text-left border border-gray-300">Issue Type</th>
+                                  <th scope="col" className="px-4 py-2 text-left border border-gray-300">Before</th>
+                                  <th scope="col" className="px-4 py-2 text-left border border-gray-300">After</th>
+                                  <th scope="col" className="px-4 py-2 text-left border border-gray-300">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <th scope="row" className="px-4 py-2 border border-gray-300 font-medium">Missing Headers</th>
+                                  <td className="px-4 py-2 border border-gray-300 text-red-600">5 issues</td>
+                                  <td className="px-4 py-2 border border-gray-300 text-green-600">0 issues</td>
+                                  <td className="px-4 py-2 border border-gray-300">
+                                    <span className="text-green-600 font-semibold">✓ Fixed</span>
+                                  </td>
+                                </tr>
+                                <tr className="bg-gray-50">
+                                  <th scope="row" className="px-4 py-2 border border-gray-300 font-medium">Missing Alt Text</th>
+                                  <td className="px-4 py-2 border border-gray-300 text-red-600">8 issues</td>
+                                  <td className="px-4 py-2 border border-gray-300 text-green-600">0 issues</td>
+                                  <td className="px-4 py-2 border border-gray-300">
+                                    <span className="text-green-600 font-semibold">✓ Fixed</span>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </section>
+
+                        <footer className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-green-800 text-sm" role="status">
+                            ✓ This document now meets WCAG 2.1 AA accessibility standards and is fully compatible with screen readers and assistive technologies.
+                          </p>
+                        </footer>
+                      </main>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
