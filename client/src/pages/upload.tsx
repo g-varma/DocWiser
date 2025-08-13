@@ -13,11 +13,14 @@ interface AnalysisResults {
     type: string;
     severity: 'high' | 'medium' | 'low';
     description: string;
+    location?: string;
   }>;
   fixes: Array<{
     type: string;
     description: string;
   }>;
+  accessibleHtml: string;
+  originalText: string;
 }
 
 export default function UploadPage() {
@@ -66,72 +69,84 @@ export default function UploadPage() {
   const handleFileUpload = async (file: File) => {
     setIsUploading(true);
 
-    // Simulate file processing
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
 
-    const mockResults: AnalysisResults = {
-      filename: file.name,
-      score: {
-        before: Math.floor(Math.random() * 30) + 20,
-        after: Math.floor(Math.random() * 10) + 90
-      },
-      processingTime: Math.floor(Math.random() * 5) + 2,
-      issues: [
-        {
-          type: "Missing Alternative Text",
-          severity: "high",
-          description: "8 images found without proper alt text descriptions for screen readers"
-        },
-        {
-          type: "Heading Structure Issues",
-          severity: "medium", 
-          description: "Document skips from H1 to H3, missing H2 hierarchy"
-        },
-        {
-          type: "Low Color Contrast",
-          severity: "medium",
-          description: "3 text elements don't meet WCAG AA contrast requirements"
-        },
-        {
-          type: "Missing Form Labels",
-          severity: "high",
-          description: "2 form inputs lack proper labels for assistive technology"
-        }
-      ],
-      fixes: [
-        {
-          type: "Alt Text Added",
-          description: "Generated descriptive alt text for all 8 images using AI vision analysis"
-        },
-        {
-          type: "Heading Structure Fixed",
-          description: "Added proper H2 headings and restructured document hierarchy"
-        },
-        {
-          type: "Color Contrast Enhanced",
-          description: "Adjusted text colors to meet WCAG 2.1 AA contrast standards"
-        },
-        {
-          type: "Form Labels Added",
-          description: "Added accessible labels and descriptions to all form elements"
-        }
-      ]
-    };
+      const response = await fetch('/api/analyze-document', {
+        method: 'POST',
+        body: formData,
+      });
 
-    setIsUploading(false);
-    setResults(mockResults);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to analyze document');
+      }
 
-    toast({
-      title: "Analysis Complete!",
-      description: `Your document has been processed and ${mockResults.fixes.length} accessibility fixes have been applied.`,
-    });
+      const results: AnalysisResults = await response.json();
+      
+      setIsUploading(false);
+      setResults(results);
+
+      toast({
+        title: "Analysis Complete!",
+        description: `Your document has been processed and ${results.fixes.length} accessibility fixes have been applied.`,
+      });
+    } catch (error) {
+      setIsUploading(false);
+      console.error('Error uploading file:', error);
+      
+      toast({
+        title: "Upload Failed",
+        description: error instanceof Error ? error.message : "Failed to analyze document. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDownload = (format: string) => {
-    toast({
-      title: "Download Started",
-      description: `Your accessible document is being prepared in ${format.toUpperCase()} format.`,
-    });
+  const handleDownload = async (format: string) => {
+    if (!results) return;
+
+    try {
+      const response = await fetch('/api/download-document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          accessibleHtml: results.accessibleHtml,
+          format: format,
+          filename: results.filename
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate download');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `accessible-${results.filename.replace(/\.[^/.]+$/, '')}.${format === 'html' ? 'html' : format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Download Ready!",
+        description: `Your accessible document has been downloaded as ${format.toUpperCase()}.`,
+      });
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to download the document. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNarration = () => {
@@ -290,10 +305,10 @@ export default function UploadPage() {
                   
                   <div className="bg-white rounded-lg shadow-inner min-h-[600px] p-6">
                     <div className="max-w-none">
-                      {/* Simulated Accessible Document Content */}
+                      {/* Header for the processed document */}
                       <header className="mb-6 border-b border-gray-200 pb-4">
                         <h1 className="text-2xl font-bold text-gray-900 mb-2" role="heading" aria-level={1}>
-                          {results.filename.replace(/\.[^/.]+$/, "")}
+                          {results.filename.replace(/\.[^/.]+$/, "")} - Accessible Version
                         </h1>
                         <div className="inline-flex items-center px-3 py-1 text-sm bg-green-100 text-green-800 rounded-full">
                           <CheckCircle className="w-4 h-4 mr-1" />
@@ -301,112 +316,16 @@ export default function UploadPage() {
                         </div>
                       </header>
 
-                      <main className="space-y-6">
-                        {/* Document Content Based on Uploaded File Type */}
-                        <section>
-                          <h2 className="text-xl font-semibold text-gray-800 mb-3" role="heading" aria-level={2}>
-                            Document Contents
-                          </h2>
-                          
-                          {/* Show different content based on likely document type */}
-                          {results.filename.toLowerCase().includes('statement') || results.filename.toLowerCase().includes('bank') ? (
-                            // Bank Statement Content
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-600">Account Number</label>
-                                  <p className="text-lg font-semibold">****-****-1234</p>
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-gray-600">Statement Period</label>
-                                  <p className="text-lg font-semibold">Jan 1 - Jan 31, 2024</p>
-                                </div>
-                              </div>
-                              
-                              <div className="overflow-x-auto">
-                                <table className="w-full border border-gray-300" role="table">
-                                  <caption className="text-sm text-gray-600 mb-2 text-left">
-                                    Transaction History (Accessible Table)
-                                  </caption>
-                                  <thead>
-                                    <tr className="bg-gray-100">
-                                      <th scope="col" className="px-4 py-2 text-left border border-gray-300 font-medium">Date</th>
-                                      <th scope="col" className="px-4 py-2 text-left border border-gray-300 font-medium">Description</th>
-                                      <th scope="col" className="px-4 py-2 text-right border border-gray-300 font-medium">Amount</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    <tr>
-                                      <td className="px-4 py-2 border border-gray-300">Jan 15, 2024</td>
-                                      <td className="px-4 py-2 border border-gray-300">Direct Deposit - Salary</td>
-                                      <td className="px-4 py-2 border border-gray-300 text-right text-green-600">+$3,500.00</td>
-                                    </tr>
-                                    <tr className="bg-gray-50">
-                                      <td className="px-4 py-2 border border-gray-300">Jan 12, 2024</td>
-                                      <td className="px-4 py-2 border border-gray-300">Online Purchase - Store ABC</td>
-                                      <td className="px-4 py-2 border border-gray-300 text-right text-red-600">-$125.50</td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          ) : results.filename.toLowerCase().includes('medical') || results.filename.toLowerCase().includes('bill') ? (
-                            // Medical Bill Content
-                            <div className="space-y-4">
-                              <div className="p-4 bg-blue-50 rounded-lg">
-                                <h3 className="font-semibold text-blue-900 mb-2">Patient Information</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                  <div>
-                                    <label className="block font-medium text-blue-700">Patient Name</label>
-                                    <p>John Doe</p>
-                                  </div>
-                                  <div>
-                                    <label className="block font-medium text-blue-700">Date of Service</label>
-                                    <p>January 15, 2024</p>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="p-4 border border-gray-300 rounded-lg">
-                                <h3 className="font-semibold mb-3">Services & Charges</h3>
-                                <div className="space-y-2">
-                                  <div className="flex justify-between">
-                                    <span>Office Visit - Level 3</span>
-                                    <span>$250.00</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Lab Work - Basic Panel</span>
-                                    <span>$125.00</span>
-                                  </div>
-                                  <div className="border-t pt-2 font-semibold flex justify-between">
-                                    <span>Total Amount Due</span>
-                                    <span>$375.00</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            // Generic Document Content
-                            <div className="space-y-4">
-                              <p className="text-gray-700 leading-relaxed">
-                                This document has been automatically processed to ensure full accessibility compliance. 
-                                All structural elements, headings, and interactive components now meet WCAG 2.1 AA standards.
-                              </p>
-                              
-                              <div className="p-4 border border-gray-300 rounded-lg">
-                                <h3 className="font-semibold mb-3" role="heading" aria-level={3}>Document Features</h3>
-                                <ul className="list-disc list-inside space-y-1 text-gray-700">
-                                  <li>Proper semantic structure with heading hierarchy</li>
-                                  <li>Alternative text for images and graphics</li>
-                                  <li>Accessible form labels and descriptions</li>
-                                  <li>High contrast colors for better readability</li>
-                                  <li>Keyboard navigation support</li>
-                                </ul>
-                              </div>
-                            </div>
-                          )}
-                        </section>
-                      </main>
+                      {/* Render the actual processed accessible HTML content */}
+                      <div 
+                        className="prose prose-lg max-w-none document-preview"
+                        dangerouslySetInnerHTML={{ __html: results.accessibleHtml }}
+                        style={{
+                          fontSize: '16px',
+                          lineHeight: '1.6',
+                          color: '#374151'
+                        }}
+                      />
 
                       <footer className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                         <p className="text-green-800 text-sm flex items-center">
