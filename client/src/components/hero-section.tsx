@@ -1,6 +1,9 @@
 import { Upload, Play } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function HeroSection() {
+  const [, setLocation] = useLocation();
+  
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -22,7 +25,7 @@ export default function HeroSection() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button 
-              onClick={() => scrollToSection('try-now')}
+              onClick={() => setLocation('/upload')}
               className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 card-hover flex items-center"
               data-testid="button-analyze-document"
               aria-label="Start analyzing documents"

@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Menu, X } from "lucide-react";
 
 export default function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [, setLocation] = useLocation();
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
@@ -53,7 +55,7 @@ export default function Navigation() {
               </button>
               
               <button 
-                onClick={() => scrollToSection('try-now')}
+                onClick={() => setLocation('/upload')}
                 className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
                 data-testid="nav-try-now"
                 aria-label="Try AccessiPDF now"
@@ -101,7 +103,7 @@ export default function Navigation() {
               </button>
               
               <button 
-                onClick={() => scrollToSection('try-now')}
+                onClick={() => setLocation('/upload')}
                 className="bg-primary-500 hover:bg-primary-600 text-white block px-3 py-2 rounded-lg text-base font-medium w-full text-left"
                 data-testid="mobile-nav-try-now"
               >
